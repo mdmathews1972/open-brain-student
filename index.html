@@ -429,18 +429,21 @@ $('ytLoad').onclick = async function(){
     if (r.ok){ var j = await r.json(); ytTitle = decodeEntities(j.title || ''); }
   } catch(e){}
   $('ytTitle').textContent = ytTitle || 'Video ' + ytId;
-  say($('ytMsg'), 'Video found. Now copy its transcript across.', true);
+  say($('ytMsg'), 'Video found. Click "Save to brain" to capture it automatically.', true);
 };
 $('ytSave').onclick = async function(){
-  var text = decodeEntities($('ytText').value.trim());
   if (!ytId) return say($('ytMsg'), 'Load the video first.', false);
-  if (!text) return say($('ytMsg'), 'Paste the transcript first.', false);
+  say($('ytMsg'), 'Fetching transcript…', true);
   try {
-    var label = '📹 YouTube: ' + (ytTitle || ytId);
-    var t = await saveThought(label + '\n\n' + text, { video_id: ytId });
-    await saveSource(t, text, 'youtube_transcript');
-    $('ytText').value = '';
-    say($('ytMsg'), 'Saved.', true); loadRecent();
+    var r = await sb.functions.invoke('capture-youtube', {
+      body: { url: 'https://www.youtube.com/watch?v=' + ytId }
+    });
+    if (r.error) throw new Error(r.error.message || 'Capture failed');
+    if (r.data && r.data.error) throw new Error(r.data.error);
+    var via = r.data.has_transcript ? 'transcript captured' : 'transcript unavailable, saved description instead';
+    say($('ytMsg'), 'Saved (' + via + ').', true);
+    $('ytUrl').value = ''; $('ytThumb').style.display = 'none'; $('ytTitle').textContent = '';
+    loadRecent();
   } catch(e){ say($('ytMsg'), e.message, false); }
 };
 
@@ -508,14 +511,15 @@ $('urlLink').addEventListener('input', function(){
 });
 $('urlSave').onclick = async function(){
   var link = $('urlLink').value.trim();
-  var text = decodeEntities($('urlText').value.trim());
   if (!link) return say($('urlMsg'), 'Add the link first.', false);
-  if (!text) return say($('urlMsg'), 'Paste the article text first.', false);
+  say($('urlMsg'), 'Fetching page…', true);
   try {
-    var t = await saveThought('🔗 ' + link + '\n\n' + text, { url: link });
-    await saveSource(t, text, 'web');
-    $('urlText').value = ''; $('urlLink').value = ''; $('urlOpen').classList.add('hide');
-    say($('urlMsg'), 'Saved.', true); loadRecent();
+    var r = await sb.functions.invoke('capture-url', { body: { url: link } });
+    if (r.error) throw new Error(r.error.message || 'Capture failed');
+    if (r.data && r.data.error) throw new Error(r.data.error);
+    say($('urlMsg'), 'Saved: ' + r.data.title, true);
+    $('urlLink').value = ''; $('urlOpen').classList.add('hide');
+    loadRecent();
   } catch(e){ say($('urlMsg'), e.message, false); }
 };
 
